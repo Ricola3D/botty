@@ -1,3 +1,6 @@
+import cv2
+import time
+
 from utils.custom_mouse import mouse
 from utils.misc import cut_roi, roi_center, wait, is_in_roi
 
@@ -84,6 +87,8 @@ def save_char_template():
     else:
         Logger.error("save_char_template: Could not save character template")
         return
+    if Config().general["info_screenshots"]:
+        cv2.imwrite("./log/screenshots/info/info_template_saved" + time.strftime("%Y%m%d_%H%M%S") + ".png", char_template)
     global last_char_template
     last_char_template = char_template
 
