@@ -81,31 +81,45 @@ def crop_text_clusters(inp_img: np.ndarray, padding_y: int = 5) -> list[ItemText
 
 def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv_th_fast") -> tuple[ItemText, str]:
     """
-    Crops visible item description boxes / tooltips
-    :inp_img: image from hover over item of interest.
+    Crops hovered item (from the inventory)'s description tooltip
+    :image: screen-image of an hovered item from the inventory.
     :model: which ocr model to use
     """
     res = ItemText()
     quality = None
+    
+    # Tooltips have a black background frame: keep only the black color on screen
     black_mask = color_filter(image, Config().colors["black"])[0]
+    
+    # Separate the black regions of the screen
     contours = cv2.findContours(
         black_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours = contours[0] if len(contours) == 2 else contours[1]
+    
+    # We must filter out the irrevelant black regions to figure out which one if the tooltip frame background
     for cntr in contours:
+        # Get the cropped region from the image
         x, y, w, h = cv2.boundingRect(cntr)
         cropped_item = image[y:y+h, x:x+w]
 
+        # Check if the region size is consistent with a tooltip. If not, discard
         if not (expected_height := BOX_EXPECTED_HEIGHT_RANGE[0] < h < BOX_EXPECTED_HEIGHT_RANGE[1]):
             continue
         if not (expected_width := BOX_EXPECTED_WIDTH_RANGE[0] < w < BOX_EXPECTED_WIDTH_RANGE[1]):
             continue
 
+        # Check if the region is mostly dark. If not, discard
         avg = np.average(cv2.cvtColor(cropped_item, cv2.COLOR_BGR2GRAY))
         if not (mostly_dark := 0 < avg < 35):
             continue
+            
+        # Check if the region contains black. If not, discard
         if not (contains_black := np.min(cropped_item) < 14):
             continue
 
+        # In D2, all item tooltips contain some text in white color, except keys/essences/organs
+        # Keys/essences/organs tooltips contain some text in orange color
+        # So: check if the region contains white or orange. If neither, discard.
         contains_white = np.max(cropped_item) > 250
         contains_orange = False
         if not contains_white:
@@ -115,10 +129,10 @@ def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv
         if not (contains_white or contains_orange):
             continue
 
-        # check to see if contour overlaps right inventory
+        # Check if the region overlaps the inventory theorical position. If not, discard
         right_inv = Config().ui_roi["right_inventory"]
         overlaps_inventory = not (
-            x+w < right_inv[0] or right_inv[0]+right_inv[2] < x or y+h+60 < right_inv[1] or right_inv[1]+right_inv[3] < y)
+            x+w < right_inv[0] or right_inv[0]+right_inv[2] < x or y+h+80 < right_inv[1] or right_inv[1]+right_inv[3] < y)
         if not overlaps_inventory:
             left_inv = Config().ui_roi["left_inventory"]
             overlaps_inventory |= not (
@@ -127,11 +141,16 @@ def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv
             continue
 
         #print(f"x: {x}, y: {y}, w: {w}, h: {h}")
+
+        # All the tooltips contain the footer with either "CTRL + LEFT CLICK TO MOVE" or ""CTRL + LEFT CLICK TO DROP"
+        # As a final check, we check if the cropped image contains the golden text "TO" (by comparing with a template image). If not, we discard
         footer_y = (y + h) if (y + h) < 700 else 700
         footer_h = 720 - footer_y
         found_footer = template_finder.search(["TO_TOOLTIP"], image, threshold=0.8, roi=[x, footer_y, w, footer_h]).valid
         if found_footer:
+            # Read the block of text in the image
             res.ocr_result = image_to_text(cropped_item, psm=6, model=model)[0]
+            # Detect the color of the object name (tooltip first row) to figure its quality (set, unique, rare, ...)
             first_row = cut_roi(copy.deepcopy(cropped_item), (0, 0, w, 26))
             if _contains_color(first_row, "green"):
                 quality = ItemQuality.Set.value
@@ -151,10 +170,16 @@ def crop_item_tooltip(image: np.ndarray, model: str = "hover-eng_inconsolata_inv
                 else:
                     quality = ItemQuality.Gray.value
             else:
+                # Default, just in case
+                Logger.warning("Could not identify clearly item quality")
                 quality = ItemQuality.Normal.value
             res.roi = [x, y, w, h]
             res.img = cropped_item
             break
+    
+    if quality == None:
+        Logger.error("Failed to find the hovered inventory item's tooltip")
+    
     return res, quality
 
 def _contains_color(img: np.ndarray, color: str) -> bool:
