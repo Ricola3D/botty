@@ -35,3 +35,4 @@ dependencies:
     - typing_extensions
     - colorama
     - dataclasses-json
+    - pyparsing
