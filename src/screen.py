@@ -45,8 +45,19 @@ def find_and_set_window_position():
     ).advanced_options["window_client_area_offset"])
     if position is not None:
         set_window_position(*position)
+    else:
+        unset_window_position()
     wait(1)
 
+def unset_window_position():
+    global monitor_roi, monitor_x_range, monitor_y_range, found_offsets
+    if found_offsets:
+        Logger.warning(f"D2R window position on screen lost")
+    monitor_roi = sct.monitors[0]
+    found_offsets = False
+    monitor_x_range = None
+    monitor_y_range = None
+    
 def set_window_position(offset_x: int, offset_y: int):
     global monitor_roi, monitor_x_range, monitor_y_range, found_offsets
     if found_offsets and monitor_roi["top"] == offset_y and monitor_roi["left"] == offset_x:
@@ -96,6 +107,9 @@ def convert_screen_to_monitor(screen_coord: tuple[float, float]) -> tuple[float,
     global monitor_roi
     if screen_coord is None:
         Logger.error("convert_screen_to_monitor: empty coordinates passed")
+        return None
+    if not get_offset_state():
+        Logger.error("convert_screen_to_monitor: D2R window coordinates are not set")
         return None
     x = screen_coord[0] + monitor_roi["left"]
     y = screen_coord[1] + monitor_roi["top"]

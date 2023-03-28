@@ -83,7 +83,7 @@ class GameController:
                     messenger.send_message("Got stuck and will now restart D2R")
                 if restart_game(Config().general["d2r_path"], Config().advanced_options["launch_options"]):
                     self.game_stats.log_end_game(failed=max_game_length_reached)
-                    if self.setup_screen():
+                    if self.screen_is_setup():
                         self.start_health_manager_thread()
                         self.start_death_manager_thread()
                         self.game_recovery = GameRecovery(self.death_manager)
@@ -104,13 +104,15 @@ class GameController:
             Logger.warning("Your D2R settings differ from the requiered ones. Please use Auto Settings to adjust them. The differences are:")
             Logger.warning(f"{diff}")
         set_d2r_always_on_top()
-        self.setup_screen()
-        self.start_health_manager_thread()
-        self.start_death_manager_thread()
-        self.game_recovery = GameRecovery(self.death_manager)
-        self.game_stats = GameStats()
-        self.start_game_controller_thread()
-        self.is_running = True
+        if self.screen_is_setup():
+            self.start_health_manager_thread()
+            self.start_death_manager_thread()
+            self.game_recovery = GameRecovery(self.death_manager)
+            self.game_stats = GameStats()
+            self.start_game_controller_thread()
+            self.is_running = True
+        else:
+            Logger.error("D2R window position has not been detected yet")
 
     def stop(self):
         restore_d2r_window_visibility()
@@ -120,7 +122,7 @@ class GameController:
         if self.game_controller_thread: kill_thread(self.game_controller_thread)
         self.is_running = False
 
-    def setup_screen(self):
+    def screen_is_setup(self):
         if get_offset_state():
             return True
         return False

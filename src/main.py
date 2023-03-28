@@ -27,6 +27,7 @@ def start_or_pause_bot(controllers: Controllers):
     else:
         # Kill any other controllers and start botty
         controllers.debugger.stop()
+        
         screen.start_detecting_window()
         controllers.game.start()
 
@@ -36,8 +37,9 @@ def start_or_stop_graphic_debugger(controllers: Controllers):
         screen.stop_detecting_window()
     else:
         # Kill any other controller and start debugger
-        screen.start_detecting_window()
         controllers.game.stop()
+        
+        screen.start_detecting_window()
         controllers.debugger.start()
 
 def on_exit():

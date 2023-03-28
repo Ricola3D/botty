@@ -34,7 +34,7 @@ class Nihlathak:
         if not self._char.capabilities.can_teleport_natively:
             raise ValueError("Nihlathak requires teleport")
         if not self._town_manager.open_wp(start_loc):
-            return False
+            raise ValueError("Failed to use Halls of Pains waypoint")
         wait(0.4)
         if waypoint.use_wp("Halls of Pain"): # use Halls of Pain Waypoint (5th in A5)
             return Location.A5_NIHLATHAK_START

@@ -5,8 +5,9 @@ import numpy as np
 
 from utils import mttkinter
 from utils.misc import color_filter, kill_thread
-from screen import grab
+from screen import grab, get_offset_state
 from config import Config
+from logger import Logger
 import tkinter as tk
 import template_finder
 from PIL import ImageTk, Image
@@ -37,16 +38,19 @@ class GraphicDebuggerController:
         self.is_running = False
 
     def start(self):
-        if Config().advanced_options['graphic_debugger_layer_creator']:
-            self.debugger_thread = threading.Thread(target=self.run_debugger_processor, daemon=False, name="Debugger-processor")
-            self.debugger_thread.start()
-            # we need to run the ui in the mainloop (tkinter kinda sucks)
-            self.ui_thread = threading.Thread(target=self.run_debgger_ui, daemon=True, name="Debugger-ui")
-            self.ui_thread.start()
+        if self.screen_is_setup():
+            if Config().advanced_options['graphic_debugger_layer_creator']:
+                self.debugger_thread = threading.Thread(target=self.run_debugger_processor, daemon=False, name="Debugger-processor")
+                self.debugger_thread.start()
+                # we need to run the ui in the mainloop (tkinter kinda sucks)
+                self.ui_thread = threading.Thread(target=self.run_debgger_ui, daemon=True, name="Debugger-ui")
+                self.ui_thread.start()
+            else:
+                self.debugger_thread = threading.Thread(target=self.run_old_debugger, daemon=False, name="Debugger-processor")
+                self.debugger_thread.start()
+            self.is_running = True
         else:
-            self.debugger_thread = threading.Thread(target=self.run_old_debugger, daemon=False, name="Debugger-processor")
-            self.debugger_thread.start()
-        self.is_running = True
+            Logger.error("D2R window position has not been detected yet")
 
     def stop(self):
         # TODO: these two layers variable (and panel) needs to be reassigned because F10 will not re-init the
@@ -58,11 +62,17 @@ class GraphicDebuggerController:
             self.active_layers = {}
             self.displayed_layers = {}
             self.panel = None
-            self.app.destroy()
+            if self.app is not None: # Safety check to avoid exception (from Gastropod's fork)
+                self.app.destroy()
         if self.debugger_thread: kill_thread(self.debugger_thread)
         if self.ui_thread: kill_thread(self.ui_thread)
         cv2.destroyAllWindows()
         self.is_running = False
+
+    def screen_is_setup(self):
+        if get_offset_state():
+            return True
+        return False
 
     def run_debgger_ui(self):
         self.app = mttkinter.Tk()
